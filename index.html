@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Flappy Aether - Mobile Multiplayer</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            background-color: #0b0c10;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: sans-serif;
+        }
+        #game-container {
+            width: 100%;
+            height: 100%;
+            max-width: 450px;
+            max-height: 800px;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container"></div>
+
+    <script>
+        const config = {
+            type: Phaser.AUTO,
+            width: 450,
+            height: 800,
+            parent: 'game-container',
+            backgroundColor: '#1f2833',
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: { y: 1200 }, // Schwerkraft für das "Flappy"-Gefühl
+                    debug: false
+                }
+            },
+            scale: {
+                mode: Phaser.Scale.FIT,
+                autoCenter: Phaser.Scale.CENTER_BOTH
+            },
+            scene: {
+                preload: preload,
+                create: create,
+                update: update
+            }
+        };
+
+        const game = new Phaser.Game(config);
+
+        let bird1, bird2;
+        let pipes;
+        let score1 = 0, score2 = 0;
+        let scoreText1, scoreText2;
+        let gameOver = false;
+
+        function preload() {
+            // Keine externen Bilder nötig, wir generieren die Grafiken gleich live!
+        }
+
+        function create() {
+            gameOver = false;
+            score1 = 0;
+            score2 = 0;
+
+            // --- SPIELFELD-TRENNUNG (Optisch) ---
+            let separator = this.add.graphics();
+            separator.lineStyle(2, 0x1f2833, 0.5);
+            separator.lineBetween(225, 0, 225, 800);
+
+            // --- GRAFIKEN GENERIEREN ---
+            // Spieler 1 Textur (Neon Cyan)
+            let b1Graphics = this.make.graphics({ x: 0, y: 0, add: false });
+            b1Graphics.fillStyle(0x00ffcc, 1);
+            b1Graphics.fillCircle(15, 15, 15);
+            b1Graphics.generateTexture('bird1Texture', 30, 30);
+
+            // Spieler 2 Textur (Neon Pink)
+            let b2Graphics = this.make.graphics({ x: 0, y: 0, add: false });
+            b2Graphics.fillStyle(0xff00ff, 1);
+            b2Graphics.fillCircle(15, 15, 15);
+            b2Graphics.generateTexture('bird2Texture', 30, 30);
+
+            // Röhren Textur (Steampunk Orange)
+            let pipeGraphics = this.make.graphics({ x: 0, y: 0, add: false });
+            pipeGraphics.fillStyle(0xff9900, 1);
+            pipeGraphics.fillRect(0, 0, 60, 40);
+            pipeGraphics.generateTexture('pipeTexture', 60, 40);
+
+            // --- PHYSIK-OBJEKTE ERSTELLEN ---
+            // Spieler 1 (Startet links)
+            bird1 = this.physics.add.sprite(100, 400, 'bird1Texture');
+            bird1.setCollideWorldBounds(true);
+
+            // Spieler 2 (Startet rechts)
+            bird2 = this.physics.add.sprite(350, 400, 'bird2Texture');
+            bird2.setCollideWorldBounds(true);
+
+            // Röhren-Gruppe
+            pipes = this.physics.add.group();
+
+            // --- STEUERUNG (Touch / Klick) ---
+            // Phaser lauscht standardmäßig auf Multitouch (perfekt für iOS)
+            this.input.on('pointerdown', function (pointer) {
+                if (gameOver) {
+                    this.scene.restart(); // Bei Game Over startet Klick das Spiel neu
+                    return;
+                }
+
+                // Wenn auf die linke Bildschirmhälfte getippt wird -> Spieler 1 springt
+                if (pointer.x < 225) {
+                    bird1.setVelocityY(-400);
+                } 
+                // Wenn auf die rechte Hälfte getippt wird -> Spieler 2 springt
+                else {
+                    bird2.setVelocityY(-400);
+                }
+            }, this);
+
+            // --- UI / SCORE ANZEIGE ---
+            scoreText1 = this.add.text(60, 50, 'P1: 0', { fontSize: '24px', fill: '#00ffcc', fontFamily: 'monospace' });
+            scoreText2 = this.add.text(310, 50, 'P2: 0', { fontSize: '24px', fill: '#xff00ff', fontFamily: 'monospace' });
+
+            // --- RÖHREN-SPAWNER TIMER ---
+            // Alle 1.5 Sekunden wird eine neue Barriere gebaut
+            this.time.addEvent({
+                delay: 1500,
+                callback: spawnPipes,
+                callbackScope: this,
+                loop: true
+            });
+
+            // --- KOLLISIONEN ---
+            this.physics.add.collider(bird1, pipes, () => hitPipe(bird1, this), null, this);
+            this.physics.add.collider(bird2, pipes, () => hitPipe(bird2, this), null, this);
+        }
+
+        function update() {
+            if (gameOver) return;
+
+            // Wenn ein Vogel den Boden oder die Decke berührt -> Game Over
+            if (bird1.y >= 785 || bird1.y <= 15) hitPipe(bird1, this);
+            if (bird2.y >= 785 || bird2.y <= 15) hitPipe(bird2, this);
+
+            // Punkte zählen, wenn Röhren erfolgreich passiert werden
+            pipes.getChildren().forEach(pipe => {
+                if (pipe.x + pipe.width < bird1.x && !pipe.passedBy1) {
+                    pipe.passedBy1 = true;
+                    score1 += 0.5; // Da es obere und untere Röhren gibt, zählt jede 0.5
+                    scoreText1.setText('P1: ' + Math.floor(score1));
+                }
+                if (pipe.x + pipe.width < bird2.x && !pipe.passedBy2) {
+                    pipe.passedBy2 = true;
+                    score2 += 0.5;
+                    scoreText2.setText('P2: ' + Math.floor(score2));
+                }
+            });
+        }
+
+        function spawnPipes() {
+            if (gameOver) return;
+
+            // Bestimme eine zufällige Lücke in der Mitte
+            const gapPosition = Phaser.Math.Between(200, 600);
+            const gapHeight = 160; // Größe der Lücke, durch die man fliegen muss
+
+            // Obere Röhre (skaliert von oben bis zur Lücke)
+            let topPipe = pipes.create(450, gapPosition - gapHeight, 'pipeTexture');
+            topPipe.setOrigin(0, 1); // Orientierung von unten nach oben
+            topPipe.displayHeight = gapPosition - gapHeight;
+            topPipe.body.allowGravity = false;
+            topPipe.body.velocity.x = -250; // Geschwindigkeit nach links
+
+            // Untere Röhre
+            let bottomPipe = pipes.create(450, gapPosition, 'pipeTexture');
+            bottomPipe.setOrigin(0, 0);
+            bottomPipe.displayHeight = 800 - gapPosition;
+            bottomPipe.body.allowGravity = false;
+            bottomPipe.body.velocity.x = -250;
+        }
+
+        function hitPipe(bird, scene) {
+            // Der getroffene Vogel wird rot gefärbt und "stirbt"
+            bird.setTint(0xff0000);
+            scene.physics.pause();
+            gameOver = true;
+
+            // Wer hat gewonnen?
+            let winnerText = score1 > score2 ? "SPIELER 1 GEWINNT!" : "SPIELER 2 GEWINNT!";
+            if(score1 === score2) winnerText = "UNENTSCHIEDEN!";
+
+            scene.add.text(225, 400, winnerText + '\n\n[Tippen zum Neustart]', {
+                fontSize: '28px',
+                fill: '#ffffff',
+                align: 'center',
+                fontFamily: 'monospace'
+            }).setOrigin(0.5);
+        }
+    </script>
+</body>
+</html>
