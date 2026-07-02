@@ -2,213 +2,252 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Flappy Aether - Mobile Multiplayer</title>
-    
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
-
+    <title>Chronicles of Aether - GUI</title>
     <style>
-        body {
+        /* 1. GRUNDGERÜST (Verhindert Scrollen und Ränder auf dem iPhone) */
+        * {
+            box-sizing: border-box;
             margin: 0;
-            background-color: #0b0c10;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            font-family: sans-serif;
+            padding: 0;
+            user-select: none; /* Verhindert Textmarkierung beim Tippen */
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent; /* Entfernt den hässlichen blauen Klick-Kasten auf iOS */
         }
-        #game-container {
+
+        body, html {
             width: 100%;
             height: 100%;
-            max-width: 450px;
-            max-height: 800px;
-            box-shadow: 0 0 20px rgba(0, 255, 204, 0.5);
+            overflow: hidden;
+            background-color: #121216;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #e0e0e6;
+        }
+
+        /* Das Spiel-Layout: Aufgeteilt in Karte (oben) und UI-Konsole (unten) */
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            max-width: 450px; /* Perfekte Handy-Breite für den PC-Browser-Test */
+            margin: 0 auto;
+            position: relative;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+        }
+
+        /* 2. SPIELFELD (Oben) */
+        #map-area {
+            flex: 1;
+            position: relative;
+            background: radial-gradient(circle, #1a1a24 0%, #0f0f14 100%);
+        }
+
+        #game-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* 3. TOP-BAR (Ressourcen & Status ganz oben über der Karte) */
+        .top-hud {
+            position: absolute;
+            top: calc(10px + env(safe-area-inset-top)); /* Berücksichtigt die iPhone Notch */
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none; /* Klicks gehen durch das HUD auf die Karte */
+        }
+
+        .hud-card {
+            background: rgba(20, 20, 28, 0.85);
+            border: 1px solid rgba(229, 193, 88, 0.3); /* Subtiler Goldrand */
+            backdrop-filter: blur(8px); /* Schöner Unschärfe-Effekt wie bei iOS */
+            -webkit-backdrop-filter: blur(8px);
+            padding: 8px 14px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            pointer-events: auto; /* Macht die Karten selbst wieder klickbar */
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        .profile-img {
+            width: 32px;
+            height: 32px;
+            background: #e5c158;
+            border-radius: 50%;
+            border: 2px solid #121216;
+        }
+
+        .bar-container {
+            width: 100px;
+            height: 8px;
+            background: #2a2a35;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 2px;
+        }
+
+        .hp-bar { width: 85%; height: 100%; background: #ff4a5a; }
+
+        .gold-text { color: #e5c158; font-weight: bold; font-size: 14px; }
+
+        /* 4. DAUMEN-STEUERUNG & KAMPF-GUI (Unten) */
+        .bottom-ui {
+            background: linear-gradient(to top, #0f0f14 80%, rgba(15,15,20,0.9) 100%);
+            border-top: 2px solid rgba(229, 193, 88, 0.2);
+            padding: 15px 15px calc(15px + env(safe-area-inset-bottom)) 15px; /* iOS Home-Bar Schutz */
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* Action Grid für Skills / Interaktionen */
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .skill-button {
+            aspect-ratio: 1; /* Perfekt quadratisch */
+            background: #1c1c24;
+            border: 1px solid #3a3a4a;
+            border-radius: 14px;
+            color: #fff;
+            font-size: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.1s ease, border-color 0.2s;
+            box-shadow: inset 0 2px 4px rgba(255,255,255,0.05);
+        }
+
+        /* Wenn man mit dem Daumen draufdrückt */
+        .skill-button:active {
+            transform: scale(0.92);
+            border-color: #e5c158;
+            background: #252530;
+        }
+
+        .skill-button span {
+            font-size: 10px;
+            color: #8a8a9a;
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Großer Haupt-Interaktionsknopf */
+        .main-action-btn {
+            background: linear-gradient(135deg, #e5c158 0%, #b8932c 100%);
+            color: #121216;
+            font-weight: bold;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(229, 193, 88, 0.3);
+            transition: transform 0.1s;
+        }
+
+        .main-action-btn:active {
+            transform: scale(0.97);
         }
     </style>
 </head>
 <body>
 
-    <div id="game-container"></div>
+<div id="game-container">
+    
+    <div id="map-area">
+        <canvas id="game-canvas"></canvas>
 
-    <script>
-        const config = {
-            type: Phaser.AUTO,
-            width: 450,
-            height: 800,
-            parent: 'game-container',
-            backgroundColor: '#1f2833',
-            physics: {
-                default: 'arcade',
-                arcade: {
-                    gravity: { y: 1200 }, // Schwerkraft für das "Flappy"-Gefühl
-                    debug: false
-                }
-            },
-            scale: {
-                mode: Phaser.Scale.FIT,
-                autoCenter: Phaser.Scale.CENTER_BOTH
-            },
-            scene: {
-                preload: preload,
-                create: create,
-                update: update
-            }
-        };
+        <div class="top-hud">
+            <div class="hud-card">
+                <div class="profile-img"></div>
+                <div>
+                    <div style="font-size: 12px; font-weight: bold;">Pirat / Hybrid</div>
+                    <div class="bar-container"><div class="hp-bar"></div></div>
+                </div>
+            </div>
+            <div class="hud-card">
+                <span style="font-size: 14px;">🪙</span>
+                <span class="gold-text" id="gold-display">1.250</span>
+            </div>
+        </div>
+    </div>
 
-        const game = new Phaser.Game(config);
+    <div class="bottom-ui">
+        
+        <div class="action-grid">
+            <div class="skill-button" onclick="triggerSkill('Säbel')">⚔️<span>Säbel</span></div>
+            <div class="skill-button" onclick="triggerSkill('Pistole')">🔫<span>Pistole</span></div>
+            <div class="skill-button" onclick="triggerSkill('Heilung')">🧪<span>Trank</span></div>
+            <div class="skill-button" onclick="triggerSkill('Inventar')">🎒<span>Inv</span></div>
+        </div>
 
-        let bird1, bird2;
-        let pipes;
-        let score1 = 0, score2 = 0;
-        let scoreText1, scoreText2;
-        let gameOver = false;
+        <button class="main-action-btn" id="main-action">Feld erkunden</button>
+        
+    </div>
+</div>
 
-        function preload() {
-            // Keine externen Bilder nötig, wir generieren die Grafiken gleich live!
+<script>
+    // Ein bisschen JavaScript, damit das Interface direkt lebendig wirkt
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Canvas-Größe an die UI anpassen
+    function resizeCanvas() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+        
+        // Platzhalter-Karte zeichnen
+        ctx.fillStyle = '#222230';
+        ctx.strokeStyle = 'rgba(229, 193, 88, 0.15)';
+        ctx.lineWidth = 2;
+        
+        // Zeichnet ein einfaches Raster als Beweis, dass der Canvas läuft
+        for(let i = 0; i < canvas.width; i += 40) {
+            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
         }
+        
+        // Spieler-Symbol (Mitte)
+        ctx.fillStyle = '#ff4a5a';
+        ctx.beginPath();
+        ctx.arc(canvas.width/2, canvas.height/2, 12, 0, Math.PI*2);
+        ctx.fill();
+    }
 
-        function create() {
-            gameOver = false;
-            score1 = 0;
-            score2 = 0;
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
 
-            // --- SPIELFELD-TRENNUNG (Optisch) ---
-            let separator = this.add.graphics();
-            separator.lineStyle(2, 0x1f2833, 0.5);
-            separator.lineBetween(225, 0, 225, 800);
-
-            // --- GRAFIKEN GENERIEREN ---
-            // Spieler 1 Textur (Neon Cyan)
-            let b1Graphics = this.make.graphics({ x: 0, y: 0, add: false });
-            b1Graphics.fillStyle(0x00ffcc, 1);
-            b1Graphics.fillCircle(15, 15, 15);
-            b1Graphics.generateTexture('bird1Texture', 30, 30);
-
-            // Spieler 2 Textur (Neon Pink)
-            let b2Graphics = this.make.graphics({ x: 0, y: 0, add: false });
-            b2Graphics.fillStyle(0xff00ff, 1);
-            b2Graphics.fillCircle(15, 15, 15);
-            b2Graphics.generateTexture('bird2Texture', 30, 30);
-
-            // Röhren Textur (Steampunk Orange)
-            let pipeGraphics = this.make.graphics({ x: 0, y: 0, add: false });
-            pipeGraphics.fillStyle(0xff9900, 1);
-            pipeGraphics.fillRect(0, 0, 60, 40);
-            pipeGraphics.generateTexture('pipeTexture', 60, 40);
-
-            // --- PHYSIK-OBJEKTE ERSTELLEN ---
-            // Spieler 1 (Startet links)
-            bird1 = this.physics.add.sprite(100, 400, 'bird1Texture');
-            bird1.setCollideWorldBounds(true);
-
-            // Spieler 2 (Startet rechts)
-            bird2 = this.physics.add.sprite(350, 400, 'bird2Texture');
-            bird2.setCollideWorldBounds(true);
-
-            // Röhren-Gruppe
-            pipes = this.physics.add.group();
-
-            // --- STEUERUNG (Touch / Klick) ---
-            // Phaser lauscht standardmäßig auf Multitouch (perfekt für iOS)
-            this.input.on('pointerdown', function (pointer) {
-                if (gameOver) {
-                    this.scene.restart(); // Bei Game Over startet Klick das Spiel neu
-                    return;
-                }
-
-                // Wenn auf die linke Bildschirmhälfte getippt wird -> Spieler 1 springt
-                if (pointer.x < 225) {
-                    bird1.setVelocityY(-400);
-                } 
-                // Wenn auf die rechte Hälfte getippt wird -> Spieler 2 springt
-                else {
-                    bird2.setVelocityY(-400);
-                }
-            }, this);
-
-            // --- UI / SCORE ANZEIGE ---
-            scoreText1 = this.add.text(60, 50, 'P1: 0', { fontSize: '24px', fill: '#00ffcc', fontFamily: 'monospace' });
-            scoreText2 = this.add.text(310, 50, 'P2: 0', { fontSize: '24px', fill: '#xff00ff', fontFamily: 'monospace' });
-
-            // --- RÖHREN-SPAWNER TIMER ---
-            // Alle 1.5 Sekunden wird eine neue Barriere gebaut
-            this.time.addEvent({
-                delay: 1500,
-                callback: spawnPipes,
-                callbackScope: this,
-                loop: true
-            });
-
-            // --- KOLLISIONEN ---
-            this.physics.add.collider(bird1, pipes, () => hitPipe(bird1, this), null, this);
-            this.physics.add.collider(bird2, pipes, () => hitPipe(bird2, this), null, this);
+    // Feedback für die Buttons
+    function triggerSkill(name) {
+        console.log("Skill aktiviert: " + name);
+        if(name === 'Säbel') {
+            document.getElementById('main-action').innerText = "Gegner angreifen!";
+            document.getElementById('main-action').style.background = "linear-gradient(135deg, #ff4a5a 0%, #b32432 100%)";
+            document.getElementById('main-action').style.boxShadow = "0 4px 15px rgba(255, 74, 90, 0.3)";
+            document.getElementById('main-action').style.color = "#fff";
+        } else {
+            // Zurücksetzen auf Standard
+            document.getElementById('main-action').innerText = "Feld erkunden";
+            document.getElementById('main-action').style.background = "linear-gradient(135deg, #e5c158 0%, #b8932c 100%)";
+            document.getElementById('main-action').style.boxShadow = "0 4px 15px rgba(229, 193, 88, 0.3)";
+            document.getElementById('main-action').style.color = "#121216";
         }
+    }
+</script>
 
-        function update() {
-            if (gameOver) return;
-
-            // Wenn ein Vogel den Boden oder die Decke berührt -> Game Over
-            if (bird1.y >= 785 || bird1.y <= 15) hitPipe(bird1, this);
-            if (bird2.y >= 785 || bird2.y <= 15) hitPipe(bird2, this);
-
-            // Punkte zählen, wenn Röhren erfolgreich passiert werden
-            pipes.getChildren().forEach(pipe => {
-                if (pipe.x + pipe.width < bird1.x && !pipe.passedBy1) {
-                    pipe.passedBy1 = true;
-                    score1 += 0.5; // Da es obere und untere Röhren gibt, zählt jede 0.5
-                    scoreText1.setText('P1: ' + Math.floor(score1));
-                }
-                if (pipe.x + pipe.width < bird2.x && !pipe.passedBy2) {
-                    pipe.passedBy2 = true;
-                    score2 += 0.5;
-                    scoreText2.setText('P2: ' + Math.floor(score2));
-                }
-            });
-        }
-
-        function spawnPipes() {
-            if (gameOver) return;
-
-            // Bestimme eine zufällige Lücke in der Mitte
-            const gapPosition = Phaser.Math.Between(200, 600);
-            const gapHeight = 160; // Größe der Lücke, durch die man fliegen muss
-
-            // Obere Röhre (skaliert von oben bis zur Lücke)
-            let topPipe = pipes.create(450, gapPosition - gapHeight, 'pipeTexture');
-            topPipe.setOrigin(0, 1); // Orientierung von unten nach oben
-            topPipe.displayHeight = gapPosition - gapHeight;
-            topPipe.body.allowGravity = false;
-            topPipe.body.velocity.x = -250; // Geschwindigkeit nach links
-
-            // Untere Röhre
-            let bottomPipe = pipes.create(450, gapPosition, 'pipeTexture');
-            bottomPipe.setOrigin(0, 0);
-            bottomPipe.displayHeight = 800 - gapPosition;
-            bottomPipe.body.allowGravity = false;
-            bottomPipe.body.velocity.x = -250;
-        }
-
-        function hitPipe(bird, scene) {
-            // Der getroffene Vogel wird rot gefärbt und "stirbt"
-            bird.setTint(0xff0000);
-            scene.physics.pause();
-            gameOver = true;
-
-            // Wer hat gewonnen?
-            let winnerText = score1 > score2 ? "SPIELER 1 GEWINNT!" : "SPIELER 2 GEWINNT!";
-            if(score1 === score2) winnerText = "UNENTSCHIEDEN!";
-
-            scene.add.text(225, 400, winnerText + '\n\n[Tippen zum Neustart]', {
-                fontSize: '28px',
-                fill: '#ffffff',
-                align: 'center',
-                fontFamily: 'monospace'
-            }).setOrigin(0.5);
-        }
-    </script>
 </body>
 </html>
